@@ -1,0 +1,218 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Display Tweets</title>
+  <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.1.1/css/bootstrap.min.css">
+  <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+  <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.4.2/underscore-min.js"></script>
+  <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/backbone.js/0.9.2/backbone-min.js"></script>
+  <style type="text/css">
+	#container{height:100%; width:100%; font-size:0;}
+	#col1, #col2, #col3 {display: inline-block; *display: inline; zoom: 1; vertical-align: top; font-size: 12px;}
+	#col1 {width: 30%; margin-right:10px}
+	#col2 {width: 30%; margin-right:10px}
+	#col3 {width: 30%; margin-right:10px}
+	#pos {float:left; margin-right:10px}
+	#adPos, #lsPos, #tcPos {float:left; margin-right:10px}
+  </style>	
+</head>
+<body>
+  <div class="container">
+    <h1>Tech Tweets</h1>
+	<a class="btn btn-primary" href="#/edit">Edit display</a>
+	<br/><br/>
+    <div class="page">
+	  <div id="edit"></div>
+	  <div id="container">
+        <div id='col1' class='col'></div>
+        <div id='col2' class='col'></div>
+        <div id='col3' class='col'></div>
+      </div>	
+	</div>
+  </div>
+  
+  <script type="text/template" id="tweet-template">
+    <table class="table striped">
+      <thead>
+	    <% header = "header" %>
+		<% _.each(tweets, function (tweet) { %>
+		  <% header = tweet.get('company'); %>
+		  <% return false; %>
+		<% }); %>
+		<tr>
+		  <th> 
+		    <%= htmlEncode(header) %>
+		   </th>
+        </tr>
+      </thead>
+      <tbody>
+        <% $.each(tweets, function(i, tweet) { %>
+          <tr>
+            <td> 
+			  <% if (new Date(tweet.get('date')) < new Date(localStorage.timeMin)) return; %>
+			  <%= htmlEncode(tweet.get('text')) %><br/>
+			  <%= htmlEncode(tweet.get('date').toLocaleDateString("en-us", dateOptions)) %><br/>
+			  <a href='<%= htmlEncode(tweet.get('url'))%>'
+			    title='<%= htmlEncode(tweet.get('expanded_url'))%>'>
+				<%= htmlEncode(tweet.get('display_url')) %>
+				</a>
+				<br/><br/>
+			</td>
+          </tr>
+        <% if (i + 1 >= localStorage.perPage) return false;}); %>
+      </tbody>
+    </table>
+  </script>  
+  
+  <script type="text/template" id="edit-template">
+	<form class="edit-form">
+	  <label>Number of tweets per column: </label>
+	  <input name="numberoftweets" id="numberoftweets" type="text" value="<%= localStorage.perPage %>"></input>
+	  <label>Earliest date: </label>
+	  <input name="earliestdate" id="earliestdate" type="date" value="<%= getDateString(new Date(localStorage.timeMin)) %>"></input><br/>
+	  <label><strong>Column positions:</strong> </label>
+	  <label id="pos">AppDirect</label>
+	  <input name="adPos" id="adPos" type="number" min="1" max="3" value="<%= localStorage.adPos %>"></input>
+	  <label id="pos">laughingsquid</label>
+	  <input name="lsPos" id="lsPos" type="number" min="1" max="3" value="<%= localStorage.lsPos %>"></input>
+	  <label id="pos">techcrunch</label>
+	  <input name="tcPos" id="tcPos" type="number" min="1" max="3" value="<%= localStorage.tcPos %>"></input>
+	  <label>Background Color</label>
+	  <select id="colorselect">
+	    <option value="white">White</option>
+		<option value="green">Green</option>
+		<option value="#66FFFF">Sky Blue</option>
+		<option value="blue">Blue</option>
+		<option value="pink">Pink</option>
+      </select>
+	  <br/><br/>
+	  <button type="button" class="btn refresh">Submit Changes!</button>
+	  <hr/><hr/>
+	</form>
+  </script>
+  <script type = "text/javascript">
+    $.ajaxSetup({
+	  async: false
+	});
+	
+	function htmlEncode(value){
+      return $('<div/>').text(value).html();
+    }
+
+	//Set up default values for local storage
+	if (!(localStorage.perPage instanceof Number)) localStorage.perPage = 30;
+	if (!(localStorage.timeMin instanceof Date)) localStorage.timeMin = new Date(2015, 4, 1);
+	if (!localStorage.adPos) localStorage.adPos = '1';
+	if (!localStorage.lsPos) localStorage.lsPos = '2';
+	if (!localStorage.tcPos) localStorage.tcPos = '3';
+	
+	//options to format date
+	var dateOptions = {
+      weekday: "long", year: "numeric", month: "short",
+      day: "numeric", hour: "2-digit", minute: "2-digit"
+	};
+	
+	//format date for edit form
+	function getDateString (d) {
+	  year = d.getFullYear().toString();
+	  month = d.getMonth();
+	  if (month < 9) 
+	    month = "0" + (month + 1).toString();
+	  else 
+	    month = (month + 1).toString();
+      day = d.getDate();
+      if (day < 10)
+        day = "0" + day.toString();
+      return year + "-" + month + "-" + day;		
+	};
+  
+    var Tweet = Backbone.Model.extend({});
+	
+	var Tweets = Backbone.Collection.extend({
+	  model: Tweet
+	});
+	
+	var TweetsView = Backbone.View.extend({
+	  el: '.page',
+      render: function (tweets, num) {
+	    var template = _.template($('#tweet-template').html(), {tweets: tweets.models});
+		//this.$el.html(template);
+		$("div#col" + num).empty();
+		$("div#col" + num).append(template);
+		return this;
+	  }
+	});
+	
+	
+	function getTweets (tweets, user) {
+	  $.getJSON('/twitter-proxy.php?url='+encodeURIComponent('statuses/user_timeline.json?screen_name=' + user + '&count=30'), function(result) {
+		$.each(result, function(i, field) {
+		  if (field.entities.urls[0]) {
+		    tweets.add({'text': field.text, 'date': new Date(field.created_at), 
+		    'url': field.entities.urls[0].url, 'display_url': field.entities.urls[0].display_url, 
+		    'expanded_url': field.entities.urls[0].expanded_url, 'company': user});
+		  } else {
+			tweets.add({'text': field.text, 'date': new Date(field.created_at), 'company': user});
+		  }
+        });
+	  });
+	}
+	
+	var EditView = Backbone.View.extend({
+	  el: '.page',
+	  events: {
+	    'click .refresh': 'updateCols'
+	  }, 
+	  updateCols: function (ev) {
+		localStorage.perPage = $('#numberoftweets').val();
+		localStorage.timeMin = new Date($('#earliestdate').val());
+		localStorage.adPos = $('#adPos').val();
+		localStorage.lsPos = $('#lsPos').val();
+		localStorage.tcPos = $('#tcPos').val();
+		$(".col").css("background-color", $('#colorselect').val());
+		if ($('#colorselect').val() == "blue" || $('#colorselect').val() == "#66FFFF")
+		  $(".col").css("color", "white");
+		else
+		  $(".col").css("color", "black");
+		$("div#edit").empty();
+	    router.navigate('', {trigger:true});
+	  },
+	  render: function() {
+	    var eTemplate = _.template($('#edit-template').html(), {});
+		$("div#edit").append(eTemplate);
+		return this;
+	  }
+	});
+	
+	var adTweets = new Tweets(); getTweets(adTweets, 'AppDirect');
+	var lsTweets = new Tweets(); getTweets(lsTweets, 'laughingsquid');
+	var tcTweets = new Tweets(); getTweets(tcTweets, 'techcrunch');
+	var adView = new TweetsView().render(adTweets, localStorage.adPos);
+	var lsView = new TweetsView().render(lsTweets, localStorage.lsPos);
+	var tcView = new TweetsView().render(tcTweets, localStorage.tcPos);
+	
+	var editView = new EditView();
+	
+	var Router = Backbone.Router.extend({
+      routes: {
+        "": "home", 
+        "edit": "edit",
+      }
+    });
+	
+    var router = new Router;
+	router.on('route:home', function() {
+      adView.render(adTweets, localStorage.adPos);
+	  lsView.render(lsTweets, localStorage.lsPos);
+	  tcView.render(tcTweets, localStorage.tcPos);
+    });
+	
+    router.on('route:edit', function(id) {
+      editView.render();
+    });
+	
+    Backbone.history.start();
+  </script>
+</body>  
+</html>
